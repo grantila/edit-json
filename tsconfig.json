@@ -1,0 +1,26 @@
+{
+	"compilerOptions": {
+		"allowJs": false,
+		"declaration": true,
+		"sourceMap": true,
+		"lib": [ "ES2019" ],
+		"types": [
+			"node",
+			"jest"
+		],
+		"noEmit": true,
+		"target": "ES2019",
+		"module": "ES2020",
+		"esModuleInterop": true,
+		"moduleResolution": "node",
+		"noImplicitAny": true,
+		"noUnusedLocals": true,
+		"pretty": true,
+		"noUncheckedIndexedAccess": true,
+		"strict": true,
+		"alwaysStrict": true,
+	},
+	"include": [
+		"lib"
+	]
+}
