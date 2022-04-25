@@ -521,4 +521,105 @@ describe( 'rfc6902', ( ) =>
 			expect( res ).toBe( after );
 		} );
 	} );
+
+	describe( 'remove', ( ) =>
+	{
+		it( 'from object shallow', ( ) =>
+		{
+			const before =
+				`{\n  "foo": { "bar": "baz", "bak": 42 },\n  "fee": 1\n}`;
+			const after =
+				`{\n  "foo": { "bak": 42 },\n  "fee": 1\n}`;
+
+			const operations: Operation[ ] = [
+				{ op: 'remove', path: '/foo/bar' }
+			];
+
+			const res = jsonPatch( before, operations );
+
+			expect( res ).toBe( after );
+		} );
+
+		it( 'from object deep', ( ) =>
+		{
+			const before =
+				`{\n  "foo": { "bar": "baz", "bak": 42 },\n  "fee": 1\n}`;
+			const after =
+				`{\n  "fee": 1\n}`;
+
+			const operations: Operation[ ] = [
+				{ op: 'remove', path: '/foo' }
+			];
+
+			const res = jsonPatch( before, operations );
+
+			expect( res ).toBe( after );
+		} );
+
+		it( 'from array shallow', ( ) =>
+		{
+			const before =
+				`{\n  "foo": [ "bar", "baz", "bak" ],\n  "fee": 1\n}`;
+			const after =
+				`{\n  "foo": [ "bar", "bak" ],\n  "fee": 1\n}`;
+
+			const operations: Operation[ ] = [
+				{ op: 'remove', path: '/foo/1' }
+			];
+
+			const res = jsonPatch( before, operations );
+
+			expect( res ).toBe( after );
+		} );
+
+		it( 'from array deep', ( ) =>
+		{
+			const before =
+				`{\n  "foo": [ "bar", [ "baz", "bak" ] ],\n  "fee": 1\n}`;
+			const after =
+				`{\n  "foo": [ "bar" ],\n  "fee": 1\n}`;
+
+			const operations: Operation[ ] = [
+				{ op: 'remove', path: '/foo/1' }
+			];
+
+			const res = jsonPatch( before, operations );
+
+			expect( res ).toBe( after );
+		} );
+	} );
+
+	describe( 'test', ( ) =>
+	{
+		it( 'after removal, should succeed', ( ) =>
+		{
+			const before =
+				`{\n  "foo": { "bar": "baz", "bak": 42 },\n  "fee": 1\n}`;
+			const after =
+				`{\n  "foo": { "bak": 42 },\n  "fee": 1\n}`;
+
+			const operations: Operation[ ] = [
+				{ op: 'remove', path: '/foo/bar' },
+				{ op: 'test', path: '/foo', value: { bak: 42 } }
+			];
+
+			const res = jsonPatch( before, operations );
+
+			expect( res ).toBe( after );
+		} );
+
+		it( 'after removal, should succeed', ( ) =>
+		{
+			const before =
+				`{\n  "foo": { "bar": "baz", "bak": 42 },\n  "fee": 1\n}`;
+
+			const operations: Operation[ ] = [
+				{ op: 'remove', path: '/foo/bar' },
+				{ op: 'test', path: '/foo', value: { bak: 43 } }
+			];
+
+			expect( ( ) => jsonPatch( before, operations ) )
+				.toThrowError( /test operation failed/ );
+		} );
+	} );
 } );
