@@ -282,6 +282,81 @@ describe( 'rfc6902', ( ) =>
 
 	describe( 'move', ( ) =>
 	{
+		it( 'from object to object target flow', ( ) =>
+		{
+			const before =
+				`{\n  "foo": { "bar": "baz" },\n  "fee": { "a": 1 }\n}`;
+			const after =
+				`{\n  "foo": { },\n  "fee": { "a": 1, "bar": "baz" }\n}`;
+
+			const operations: Operation[ ] = [
+				{ op: 'move', from: '/foo/bar', path: '/fee/bar' }
+			];
+
+			const res = jsonPatch( before, operations );
+
+			expect( res ).toBe( after );
+		} );
+
+		it( 'from object to object target empty source flow', ( ) =>
+		{
+			const before =
+				`{\n  "foo": { "bar": "baz" },\n  "fee": { }\n}`;
+			const after =
+				`{\n  "foo": { },\n  "fee": { "bar": "baz" }\n}`;
+
+			const operations: Operation[ ] = [
+				{ op: 'move', from: '/foo/bar', path: '/fee/bar' }
+			];
+
+			const res = jsonPatch( before, operations );
+
+			expect( res ).toBe( after );
+		} );
+
+		it( 'from object to object target empty source non-flow', ( ) =>
+		{
+			const before =
+				`{\n  "foo": {\n    "bar": "baz"\n  },\n  "fee": {\n  }\n}`;
+			const after =
+				`{\n  "foo": { },\n  "fee": {\n    "bar": "baz"\n  }\n}`;
+
+			const operations: Operation[ ] = [
+				{ op: 'move', from: '/foo/bar', path: '/fee/bar' }
+			];
+
+			const res = jsonPatch( before, operations );
+
+			expect( res ).toBe( after );
+		} );
+
+		it( 'from object to object target non-flow', ( ) =>
+		{
+			const before = `{
+  "foo": {
+	"bar": "baz"
+  },
+  "fee": {
+    "a": 1
+  }
+}`;
+			const after = `{
+  "foo": { },
+  "fee": {
+    "a": 1,
+    "bar": "baz"
+  }
+}`;
+
+			const operations: Operation[ ] = [
+				{ op: 'move', from: '/foo/bar', path: '/fee/bar' }
+			];
+
+			const res = jsonPatch( before, operations );
+
+			expect( res ).toBe( after );
+		} );
+
 		it( 'from object to object', ( ) =>
 		{
 			const before = `{\n  "foo": { "bar": "baz" },\n  "fee": { }\n}`;
@@ -362,6 +437,20 @@ describe( 'rfc6902', ( ) =>
 			expect( res ).toBe( after );
 		} );
 
+		it( 'from non-flow array to array (source becomes empty)', ( ) =>
+		{
+			const before = `{\n  "foo": [\n    "bar"\n  ],\n  "fee": [ ]\n}`;
+			const after = `{\n  "foo": [ ],\n  "fee": [\n    "bar"\n  ]\n}`;
+
+			const operations: Operation[ ] = [
+				{ op: 'move', from: '/foo/0', path: '/fee/-' }
+			];
+
+			const res = jsonPatch( before, operations );
+
+			expect( res ).toBe( after );
+		} );
+
 		it( 'from array to object', ( ) =>
 		{
 			const before = `{\n  "foo": [ "bar", "baz" ],\n  "fee": { }\n}`;
@@ -399,6 +488,37 @@ describe( 'rfc6902', ( ) =>
 
 			expect( ( ) => jsonPatch( before, operations ) )
 				.toThrowError( /remove element/i );
+		} );
+
+		it( 'move object props deeply (flow source)', ( ) =>
+		{
+			const before = `{\n  "foo": { "bar": "baz" }\n}`;
+			const after = `{\n  "foo": { },\n  "fxx": { "bar": "baz" }\n}`;
+
+			const operations: Operation[ ] = [
+				{ op: 'add', path: '/fxx', value: { } },
+				{ op: 'move', from: '/foo/bar', path: '/fxx/bar' }
+			];
+
+			const res = jsonPatch( before, operations );
+
+			expect( res ).toBe( after );
+		} );
+
+		it( 'move object props deeply (non-flow source)', ( ) =>
+		{
+			const before = `{\n  "foo": {\n    "bar": "baz"\n  }\n}`;
+			const after =
+				`{\n  "foo": { },\n  "fxx": {\n    "bar": "baz"\n  }\n}`;
+
+			const operations: Operation[ ] = [
+				{ op: 'add', path: '/fxx', value: { } },
+				{ op: 'move', from: '/foo/bar', path: '/fxx/bar' }
+			];
+
+			const res = jsonPatch( before, operations );
+
+			expect( res ).toBe( after );
 		} );
 	} );
 } );

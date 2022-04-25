@@ -13,7 +13,7 @@ import { type JsonDocumentOptions } from './types.js'
 import { getDocumentOptions } from './utils.js'
 
 
-export class JsonDocument extends Indentable
+export class JsonDocument
 {
 	public readonly options: JsonDocumentOptions;
 
@@ -24,8 +24,6 @@ export class JsonDocument extends Indentable
 		options?: Partial< JsonDocumentOptions >
 	)
 	{
-		super( );
-
 		this.options = getDocumentOptions( options );
 	}
 
@@ -63,14 +61,14 @@ export class JsonDocument extends Indentable
 
 	toString( ): string
 	{
-		const chooseTabs = this.#useTabs(
+		const tabs = this.#useTabs(
 			this.root instanceof Indentable
 			? this.root.tabs
 			: undefined
 		);
 
 		const rootIndent =
-			this.rootIndentation.indentString( chooseTabs );
+			this.rootIndentation.indentString( { tabs, fallback: false } );
 
 		if ( this.root instanceof JsonPrimitiveBase )
 			return rootIndent + this.root.raw;
@@ -80,20 +78,27 @@ export class JsonDocument extends Indentable
 			if ( node instanceof JsonPrimitiveBase )
 				return node.raw;
 
-			const indent = node.flow ? '' : node.indentString( chooseTabs );
+			const indent = node.calculatedFlow
+				? ''
+				: ( parentIndent + node.indentString( { tabs } ) );
 
 			if ( node instanceof JsonArray )
 			{
-				const ret = [ node.flow ? '[ ' : '[\n' ];
+				if ( node.elements.length === 0 )
+					return '[ ]';
+
+				const ret = [ node.calculatedFlow ? '[ ' : '[\n' ];
 
 				node.elements.forEach( ( element, i ) =>
 				{
 					ret.push( indent + stringify( element, indent ) );
 
 					if ( i < node.elements.length - 1 )
-						ret.push( node.flow ? ', ' : ',\n' );
+						ret.push( node.calculatedFlow ? ', ' : ',\n' );
 					else
-						ret.push( node.flow ? ' ' : `\n${parentIndent}` );
+						ret.push(
+							node.calculatedFlow ? ' ' : `\n${parentIndent}`
+						);
 				} );
 
 				ret.push( ']' );
@@ -101,7 +106,10 @@ export class JsonDocument extends Indentable
 			}
 			else if ( node instanceof JsonObject )
 			{
-				const ret = [ node.flow ? '{ ' : '{\n' ];
+				if ( node.properties.length === 0 )
+					return '{ }';
+
+				const ret = [ node.calculatedFlow ? '{ ' : '{\n' ];
 
 				node.properties.forEach( ( prop, i ) =>
 				{
@@ -113,9 +121,11 @@ export class JsonDocument extends Indentable
 					);
 
 					if ( i < node.properties.length - 1 )
-						ret.push( node.flow ? ', ' : ',\n' );
+						ret.push( node.calculatedFlow ? ', ' : ',\n' );
 					else
-						ret.push( node.flow ? ' ' : `\n${parentIndent}` );
+						ret.push(
+							node.calculatedFlow ? ' ' : `\n${parentIndent}`
+						);
 				} );
 
 				ret.push( '}' );

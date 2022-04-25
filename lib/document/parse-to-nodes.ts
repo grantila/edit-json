@@ -14,6 +14,7 @@ import {
 	type JsonPrimitive,
 	type JsonNodeType,
 } from './nodes.js'
+import { JsonValueBase } from './types-internal.js'
 
 
 export interface ParseResult
@@ -29,10 +30,45 @@ export function parse( json: string ): ParseResult
 	const { whitespace: initialWhitespace, consumedTokens: pos } =
 		extractWhitespace( tokens, 0 );
 
-	return {
-		initialIndentation: initialWhitespace.indentable,
-		root: makeJsonAny( tokens, pos ).value,
+	const initialIndentation = initialWhitespace.indentable;
+	const root = makeJsonAny( tokens, pos ).value;
+
+	makeRelativeIndentations( root );
+
+	return { initialIndentation, root };
+}
+
+function makeRelativeIndentations( node: JsonNodeType )
+{
+	if ( !( node instanceof Indentable ) )
+		return;
+
+	const docTabs = node.tabs ?? false;
+
+	const recurse = ( node: Indentable & JsonValueBase, indent: number ) =>
+	{
+		const children = node.getChildrenNodes( );
+
+		for ( const child of children )
+		{
+			if ( child instanceof Indentable )
+			{
+				const rawDepth = child.depth;
+				const depth =
+					rawDepth === -1
+					// Probably empty object without children, hence no "depth"
+					// Rebuild depth as parent + 1 level ( 1 tab or 2 spaces )
+					? indent + ( child.tabs ? 1 : 2 )
+					: child.depthAs( docTabs );
+
+				child.setIndent( depth - indent, docTabs );
+
+				recurse( child, depth );
+			}
+		}
 	};
+
+	recurse( node, node.depth ?? 0 );
 }
 
 interface ConstructedStep< T extends JsonNodeType >
@@ -66,12 +102,13 @@ function makeJsonObject( tokens: LexerTokens, pos: number )
 		const { whitespace, consumedTokens } = extractWhitespace( tokens, i );
 
 		i += consumedTokens;
-		whitespaces.push( whitespace );
 
 		const peekToken = tokens[ i ]!;
 
 		if ( peekToken.type === 'string' )
 		{
+			whitespaces.push( whitespace );
+
 			// Property name
 			const name = peekToken.value;
 			++i;
@@ -125,7 +162,15 @@ function makeJsonObject( tokens: LexerTokens, pos: number )
 			whitespaces.map( whitespace => whitespace.indentable )
 		)
 	);
-	ret.flow = !hasNewline;
+	if ( hasNewline || ret.properties.length > 0 )
+		// Set the flow, if there are elements (or it's strictly a new-line)
+		ret.flow = !hasNewline;
+	else
+		ret.flow = undefined;
+	ret.properties.forEach( ( { value } ) =>
+	{
+		value.sourceParentFlow = ret.flow;
+	} );
 
 	return { value: ret, consumedTokens: i - pos + 1 };
 }
@@ -143,7 +188,6 @@ function makeJsonArray( tokens: LexerTokens, pos: number )
 		const { whitespace, consumedTokens } = extractWhitespace( tokens, i );
 
 		i += consumedTokens;
-		whitespaces.push( whitespace );
 
 		const peekToken = tokens[ i ]!;
 
@@ -162,6 +206,8 @@ function makeJsonArray( tokens: LexerTokens, pos: number )
 		}
 		else
 		{
+			whitespaces.push( whitespace );
+
 			const { value, consumedTokens } = makeJsonAny( tokens, i );
 			i += consumedTokens;
 
@@ -181,7 +227,15 @@ function makeJsonArray( tokens: LexerTokens, pos: number )
 			whitespaces.map( whitespace => whitespace.indentable )
 		)
 	);
-	ret.flow = !hasNewline;
+	if ( hasNewline || ret.elements.length > 0 )
+		// Set the flow, if there are elements (or it's strictly a new-line)
+		ret.flow = !hasNewline;
+	else
+		ret.flow = undefined;
+	ret.elements.forEach( value =>
+	{
+		value.sourceParentFlow = ret.flow;
+	} );
 
 	return { value: ret, consumedTokens: i - pos + 1 };
 }

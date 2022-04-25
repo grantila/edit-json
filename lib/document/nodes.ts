@@ -1,53 +1,53 @@
 import { Indentable } from './indentable.js'
+import { JsonValueBase } from './types-internal.js';
 
 
-interface JsonValue
+export class JsonArray extends Indentable implements JsonValueBase
 {
-	toJS( ): unknown;
-}
+	private _elements: Array< JsonNodeType > = [ ];
 
-export class JsonArray extends Indentable implements JsonValue
-{
-	/** Flow means a one-line array */
-	public flow: boolean = false;
+	public sourceParentFlow: JsonValueBase[ 'sourceParentFlow' ] = undefined;
 
-	#_elements: Array< JsonNodeType > = [ ];
+	public override getChildrenNodes( )
+	{
+		return this._elements;
+	}
 
 	get elements( ): ReadonlyArray< JsonNodeType >
 	{
-		return this.#_elements;
+		return this._elements;
 	}
 
 	set elements( elements: ReadonlyArray< JsonNodeType > )
 	{
-		this.#_elements = [ ...elements ];
+		this._elements = [ ...elements ];
 	}
 
 	add( value: JsonNodeType )
 	{
-		this.#_elements.push( value );
+		this._elements.push( value );
 	}
 
 	insert( value: JsonNodeType, beforeIndex: number )
 	{
-		this.#_elements.splice( beforeIndex, 0, value );
+		this._elements.splice( beforeIndex, 0, value );
 	}
 
 	get( index: number )
 	{
-		return this.#_elements[ index ];
+		return this._elements[ index ];
 	}
 
 	removeAt( index: number )
 	{
-		if ( index < 0 || index >= this.#_elements.length )
+		if ( index < 0 || index >= this._elements.length )
 			throw new Error( `Can't remove element at ${index}` );
-		return this.#_elements.splice( index, 1 )[ 0 ]!;
+		return this._elements.splice( index, 1 )[ 0 ]!;
 	}
 
 	toJS( ): unknown
 	{
-		return this.#_elements.map( elem => elem.toJS( ) );
+		return this._elements.map( elem => elem.toJS( ) );
 	}
 }
 
@@ -57,16 +57,20 @@ interface JsonObjectProperty
 	value: JsonNodeType;
 }
 
-export class JsonObject extends Indentable implements JsonValue
+export class JsonObject extends Indentable implements JsonValueBase
 {
-	/** Flow means a one-line object */
-	public flow: boolean = false;
+	private _properties: Array< JsonObjectProperty > = [ ];
 
-	#_properties: Array< JsonObjectProperty > = [ ];
+	public sourceParentFlow: JsonValueBase[ 'sourceParentFlow' ] = undefined;
+
+	public override getChildrenNodes( )
+	{
+		return this._properties.map( ( { value } ) => value );
+	}
 
 	get properties( ): ReadonlyArray< JsonObjectProperty >
 	{
-		return this.#_properties;
+		return this._properties;
 	}
 
 	set properties( properties: ReadonlyArray< JsonObjectProperty > )
@@ -82,67 +86,69 @@ export class JsonObject extends Indentable implements JsonValue
 				value: entry[ 1 ],
 			} ) );
 
-		this.#_properties = uniq;
+		this._properties = uniq;
 	}
 
 	add( name: string, value: JsonNodeType, ordered: boolean )
 	{
-		const existing = this.#_properties.find( prop => prop.name === name );
+		const existing = this._properties.find( prop => prop.name === name );
 		if ( existing )
 			existing.value = value;
 		else
 		{
 			if ( !ordered )
-				this.#_properties.push( { name, value } );
+				this._properties.push( { name, value } );
 			else
 			{
 				// Find the first good place to put this property.
 				// Since the source object might not be sorted, this is a best
 				// effort implementation.
 				let i = 0;
-				for ( ; i < this.#_properties.length; ++i )
+				for ( ; i < this._properties.length; ++i )
 				{
 					const cmp =
-						this.#_properties[ i ]!.name.localeCompare( name );
+						this._properties[ i ]!.name.localeCompare( name );
 
 					if ( cmp === 1 )
 						break;
 				}
-				this.#_properties.splice( i, 0, { name, value } );
+				this._properties.splice( i, 0, { name, value } );
 			}
 		}
 	}
 
 	get( prop: string )
 	{
-		return this.#_properties.find( ( { name } ) => name === prop )?.value;
+		return this._properties.find( ( { name } ) => name === prop )?.value;
 	}
 
 	remove( prop: string )
 	{
-		const index = this.#_properties.findIndex( ( { name } ) =>
+		const index = this._properties.findIndex( ( { name } ) =>
 			name === prop
 		);
-		if ( index < 0 || index >= this.#_properties.length )
+		if ( index < 0 || index >= this._properties.length )
 			throw new Error( `Can't remove property ${prop}, doesn't exist` );
 
-		const value = this.#_properties[ index ]!.value;
-		this.#_properties.splice( index, 1 );
+		const value = this._properties[ index ]!.value;
+		this._properties.splice( index, 1 );
 		return value;
 	}
 
 	toJS( ): unknown
 	{
 		return Object.fromEntries(
-			this.#_properties.map( ( { name, value } ) =>
+			this._properties.map( ( { name, value } ) =>
 				[ name, value.toJS( ) ]
 			)
 		);
 	}
 }
 
-export class JsonPrimitiveBase< Type > implements JsonValue
+export class JsonPrimitiveBase< Type > implements JsonValueBase
 {
+	public sourceParentFlow: JsonValueBase[ 'sourceParentFlow' ] = undefined;
+
 	public constructor( private _value: Type, private _raw: string ) { }
 
 	get value( )
@@ -267,11 +273,17 @@ export function nodeFromJS( value: unknown ): JsonNodeType | undefined
 	{
 		const ret = new JsonArray( );
 
+		if ( container.length === 0 )
+			ret.flow = undefined;
+
 		container.forEach( elem =>
 		{
 			const node = nodeFromJS( elem );
 			if ( node !== undefined )
+			{
 				ret.add( node );
+				node.sourceParentFlow = ret.flow;
+			}
 		} );
 
 		return ret;
@@ -292,9 +304,13 @@ export function nodeFromJS( value: unknown ): JsonNodeType | undefined
 		.filter( ( v ): v is NonNullable< typeof v > => !!v )
 		.sort( ( a, b ) => a[ 0 ].localeCompare( b[ 0 ] ) );
 
+	if ( props.length === 0 )
+		ret.flow = undefined;
+
 	props.forEach( ( [ key, node ] ) =>
 	{
 		ret.add( key, node, false );
+		node.sourceParentFlow = ret.flow;
 	} );
 
 	return ret;
