@@ -191,18 +191,15 @@ function makeJsonArray( tokens: LexerTokens, pos: number )
 
 		const peekToken = tokens[ i ]!;
 
-		if ( peekToken.type === 'punctuator' )
+		if ( peekToken.type === 'punctuator' && peekToken.value === ']' )
 		{
-			if ( peekToken.value === ']' )
-			{
-				// End of array
-				++i;
-				break;
-			}
-			else if ( peekToken.value !== ',' )
-				throw new Error(
-					`Unexpected punctuation "${peekToken.value}"`
-				);
+			// End of array
+			++i;
+			break;
+		}
+		else if ( peekToken.type === 'punctuator' && peekToken.value === ',' )
+		{
+			// Loop, next value
 		}
 		else
 		{
