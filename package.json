@@ -32,7 +32,8 @@
     "edit",
     "json",
     "inplace",
-    "in-place"
+    "rfc6902",
+    "patch"
   ],
   "devDependencies": {
     "@babel/preset-env": "^7.16.11",
