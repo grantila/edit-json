@@ -1,10 +1,12 @@
+type ExtendedPath = string | string[ ];
+
 interface OperationBase
 {
 	/**
 	 * An extended RFC6901 path which is either a JSON Pointer, or an array of
 	 * unencoded path segments.
 	 */
-	path: string | string[ ];
+	path: ExtendedPath;
 }
 
 export interface AddOperation extends OperationBase
@@ -27,13 +29,21 @@ export interface ReplaceOperation extends OperationBase
 export interface MoveOperation extends OperationBase
 {
 	op: 'move';
-	from: string;
+	/**
+	 * An extended RFC6901 path which is either a JSON Pointer, or an array of
+	 * unencoded path segments.
+	 */
+	from: ExtendedPath;
 }
 
 export interface CopyOperation extends OperationBase
 {
 	op: 'copy';
-	from: string;
+	/**
+	 * An extended RFC6901 path which is either a JSON Pointer, or an array of
+	 * unencoded path segments.
+	 */
+	from: ExtendedPath;
 }
 
 export interface TestOperation extends OperationBase

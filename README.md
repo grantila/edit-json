@@ -83,6 +83,12 @@ The options are:
   - `whitespace` ('auto' | 'tabs' | number): Specifies whitespace strategy. Defaults to 'auto'. Force tabs using 'tabs' or spaces using number (e.g. 2 or 4).
   - `ordered` (boolean): Try to insert new properties in order.
 
+### RFC6902
+
+By the spec RFC6902, the `path` property of an operation (and the `from` in `move` and `copy` operations) must be a well-formed JSON Pointer, with encoded path segments. [`jsonpos`](https://github.com/grantila/jsonpos/#json-pointer-paths) exposes helpers for this.
+
+To be more practical for programmatic usage, this package allows not only JSON Pointer strings as paths, but also arrays of (raw unencoded) strings. So you can use e.g. `"/foo/bar"` or `["foo", "bar"]`, whichever you prefer. For path segments containing e.g. a slash, it would be `"/f~1o~1o/bar"` or `["f/o/o", "bar"]`.
+
 
 [npm-image]: https://img.shields.io/npm/v/edit-json.svg
 [npm-url]: https://npmjs.org/package/edit-json
