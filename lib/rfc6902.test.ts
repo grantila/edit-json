@@ -4,6 +4,16 @@ import type { Operation } from './types-rfc6902.js'
 
 describe( 'rfc6902', ( ) =>
 {
+	it( 'maintains trailing whitespace', ( ) =>
+	{
+		const before = `{\n  "foo": "bar"\n}\n\n\t  \n`;
+		const after = `{\n  "foo": "bar"\n}\n\n\t  \n`;
+
+		const res = jsonPatch( before, [ ] );
+
+		expect( res ).toBe( after );
+	} );
+
 	describe( 'add', ( ) =>
 	{
 		it( 'object add ordered (after)', ( ) =>

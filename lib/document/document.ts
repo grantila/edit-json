@@ -21,6 +21,7 @@ export class JsonDocument
 		private json: string,
 		public root: JsonNodeType,
 		private rootIndentation: Indentable,
+		private trailingIndentation: string,
 		options?: Partial< JsonDocumentOptions >
 	)
 	{
@@ -135,7 +136,9 @@ export class JsonDocument
 				throw new Error( `Unexpected node type` );
 		};
 
-		return rootIndent + stringify( this.root, rootIndent );
+		return rootIndent
+			+ stringify( this.root, rootIndent )
+			+ this.trailingIndentation;
 	}
 
 	toJSON( ): string
@@ -177,6 +180,7 @@ export function parseJson( json: string, options?: JsonDocumentOptions )
 		json,
 		parsed.root,
 		parsed.initialIndentation,
+		parsed.trailingWhitespace,
 		{
 			whitespace: 'auto',
 			...options,

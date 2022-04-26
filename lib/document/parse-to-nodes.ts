@@ -20,22 +20,29 @@ import { JsonValueBase } from './types-internal.js'
 export interface ParseResult
 {
 	initialIndentation: Indentable;
+	trailingWhitespace: string;
 	root: JsonNodeType;
 }
 
 export function parse( json: string ): ParseResult
 {
-	const tokens = lexer( json );
+	const tokens = lexer( json ) as LexerTokens;
 
 	const { whitespace: initialWhitespace, consumedTokens: pos } =
 		extractWhitespace( tokens, 0 );
 
 	const initialIndentation = initialWhitespace.indentable;
-	const root = makeJsonAny( tokens, pos ).value;
+	const { value: root, consumedTokens } = makeJsonAny( tokens, pos );
+
+	const trailingPos = pos + consumedTokens;
+	const trailingWhitespace =
+		tokens[ trailingPos ]?.type === 'whitespace'
+		? tokens[ trailingPos ]!.raw
+		: '';
 
 	makeRelativeIndentations( root );
 
-	return { initialIndentation, root };
+	return { initialIndentation, trailingWhitespace, root };
 }
 
 function makeRelativeIndentations( node: JsonNodeType )
