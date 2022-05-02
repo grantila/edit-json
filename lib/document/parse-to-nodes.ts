@@ -1,8 +1,16 @@
-// @ts-expect-error
-import lexer from 'json-lexer'
+import {
+	parse as parseCst,
+	CstValueNode,
+	CstNodeObject,
+	CstNodeArray,
+} from 'json-cst'
 
-import type { AnyPrimitiveToken, LexerTokens } from '../types-internal.js'
-import { isPrimitiveToken, extractWhitespace, Whitespace } from './tokens.js'
+import {
+	isPrimitiveNode,
+	Whitespace,
+	getWhitespace,
+	CstNodePrimitive,
+} from './cst.js'
 import { decideIndentations, Indentable } from './indentable.js'
 import {
 	JsonObject,
@@ -26,19 +34,17 @@ export interface ParseResult
 
 export function parse( json: string ): ParseResult
 {
-	const tokens = lexer( json ) as LexerTokens;
+	const doc = parseCst( json );
 
-	const { whitespace: initialWhitespace, consumedTokens: pos } =
-		extractWhitespace( tokens, 0 );
+	const initialIndentation =
+		doc.whitespaceBefore
+		? getWhitespace( doc.whitespaceBefore ).indentable
+		: new Indentable( 0 );
 
-	const initialIndentation = initialWhitespace.indentable;
-	const { value: root, consumedTokens } = makeJsonAny( tokens, pos );
-
-	const trailingPos = pos + consumedTokens;
 	const trailingWhitespace =
-		tokens[ trailingPos ]?.type === 'whitespace'
-		? tokens[ trailingPos ]!.raw
-		: '';
+		doc.whitespaceAfter?.value ?? '';
+
+	const root = makeJsonAny( doc.root );
 
 	makeRelativeIndentations( root );
 
@@ -78,92 +84,43 @@ function makeRelativeIndentations( node: JsonNodeType )
 	recurse( node, node.depth ?? 0 );
 }
 
-interface ConstructedStep< T extends JsonNodeType >
+function makeJsonPrimitive( node: CstNodePrimitive ): JsonPrimitive
 {
-	value: T;
-	consumedTokens: number;
+	return node.kind === 'string'
+		? new JsonString( node.token.value, node.token.raw )
+		: node.kind === 'number'
+		? new JsonNumber( node.token.value, node.token.raw )
+		: typeof node.token.value === 'boolean'
+		? new JsonBoolean( node.token.value, node.token.raw )
+		: new JsonNull( node.token.value, node.token.raw );
 }
 
-function makeJsonPrimitive( token: AnyPrimitiveToken ): JsonPrimitive
-{
-	return token.type === 'string'
-		? new JsonString( token.value, token.raw )
-		: token.type === 'number'
-		? new JsonNumber( token.value, token.raw )
-		: typeof token.value === 'boolean'
-		? new JsonBoolean( token.value, token.raw )
-		: new JsonNull( token.value, token.raw );
-}
-
-// tokens begins _inside_ the '{' or '['
-function makeJsonObject( tokens: LexerTokens, pos: number )
-: ConstructedStep< JsonObject >
+function makeJsonObject( node: CstNodeObject ): JsonObject
 {
 	const ret = new JsonObject( );
 
 	const whitespaces: Array< Whitespace > = [ ];
 
-	let i = pos;
-	for ( ; i < tokens.length; ++i )
+	const { children, whitespaceAfterChildren } = node;
+
+	children.forEach( prop =>
 	{
-		const { whitespace, consumedTokens } = extractWhitespace( tokens, i );
-
-		i += consumedTokens;
-
-		const peekToken = tokens[ i ]!;
-
-		if ( peekToken.type === 'string' )
+		ret.add( prop.key, makeJsonAny( prop.valueNode ), false );
+		if ( prop.whitespaceBefore )
 		{
-			whitespaces.push( whitespace );
-
-			// Property name
-			const name = peekToken.value;
-			++i;
-
-			i += jumpWhitespace( tokens, i );
-
-			if (
-				tokens[ i ]!.type !== 'punctuator'
-				||
-				tokens[ i ]!.value !== ':'
-			)
-				throw new Error( `Unexpected token ${ tokens[ i ]!.type }` );
-			++i;
-
-			i += jumpWhitespace( tokens, i );
-
-			const { value, consumedTokens } = makeJsonAny( tokens, i );
-
-			i += consumedTokens;
-
-			// Jump whitespace until ',' or '}'
-			i += jumpWhitespace( tokens, i );
-
-			// Jump back, since looping will ++
-			--i;
-
-			ret.add( name, value, false );
+			whitespaces.push( getWhitespace( prop.whitespaceBefore ) );
 		}
-		else if ( peekToken.type === 'punctuator' )
-		{
-			if ( peekToken.value === '}' )
-			{
-				// End of object
-				++i;
-				break;
-			}
-			else if ( peekToken.value !== ',' )
-				throw new Error(
-					`Unexpected punctuation "${peekToken.value}"`
-				);
-		}
-		else
-			throw new Error(
-				`Failed to parse JSON. Unexpected ${tokens[ i ]!.type}`
-			);
-	}
+	} );
 
-	const hasNewline = whitespaces.some( whitespace => whitespace.hasNewline );
+	const hasNewline = [
+		...whitespaces,
+		...(
+			whitespaceAfterChildren
+			? [ getWhitespace( whitespaceAfterChildren ) ]
+			: [ ]
+		),
+	].some( whitespace => whitespace.hasNewline );
+
 	ret.setIndent(
 		decideIndentations(
 			whitespaces.map( whitespace => whitespace.indentable )
@@ -179,53 +136,35 @@ function makeJsonObject( tokens: LexerTokens, pos: number )
 		value.sourceParentFlow = ret.flow;
 	} );
 
-	return { value: ret, consumedTokens: i - pos + 1 };
+	return ret;
 }
 
-function makeJsonArray( tokens: LexerTokens, pos: number )
-: ConstructedStep< JsonArray >
+function makeJsonArray( node: CstNodeArray ): JsonArray
 {
 	const ret = new JsonArray( );
 
 	const whitespaces: Array< Whitespace > = [ ];
 
-	let i = pos;
-	for ( ; i < tokens.length; ++i )
+	const { children, whitespaceAfterChildren } = node;
+
+	children.forEach( child =>
 	{
-		const { whitespace, consumedTokens } = extractWhitespace( tokens, i );
-
-		i += consumedTokens;
-
-		const peekToken = tokens[ i ]!;
-
-		if ( peekToken.type === 'punctuator' && peekToken.value === ']' )
+		ret.add( makeJsonAny( child.valueNode ) );
+		if ( child.whitespaceBefore )
 		{
-			// End of array
-			++i;
-			break;
+			whitespaces.push( getWhitespace( child.whitespaceBefore ) );
 		}
-		else if ( peekToken.type === 'punctuator' && peekToken.value === ',' )
-		{
-			// Loop, next value
-		}
-		else
-		{
-			whitespaces.push( whitespace );
+	} );
 
-			const { value, consumedTokens } = makeJsonAny( tokens, i );
-			i += consumedTokens;
+	const hasNewline = [
+		...whitespaces,
+		...(
+			whitespaceAfterChildren
+			? [ getWhitespace( whitespaceAfterChildren ) ]
+			: [ ]
+		),
+	].some( whitespace => whitespace.hasNewline );
 
-			// Jump whitespace until ',' or ']'
-			i += jumpWhitespace( tokens, i );
-
-			// Jump back, since looping will ++
-			--i;
-
-			ret.add( value );
-		}
-	}
-
-	const hasNewline = whitespaces.some( whitespace => whitespace.hasNewline );
 	ret.setIndent(
 		decideIndentations(
 			whitespaces.map( whitespace => whitespace.indentable )
@@ -241,31 +180,17 @@ function makeJsonArray( tokens: LexerTokens, pos: number )
 		value.sourceParentFlow = ret.flow;
 	} );
 
-	return { value: ret, consumedTokens: i - pos + 1 };
+	return ret;
 }
 
-function makeJsonAny( tokens: LexerTokens, pos: number )
-: ConstructedStep< JsonNodeType >
+function makeJsonAny( node: CstValueNode ): JsonNodeType
 {
-	const firstToken = tokens[ pos ]!;
-
-	if ( isPrimitiveToken( firstToken ) )
-		return {
-			consumedTokens: 1,
-			value: makeJsonPrimitive( firstToken ),
-		};
-	else if ( firstToken.value === '{' )
-		return makeJsonObject( tokens, pos + 1 );
-	else if ( firstToken.value === '[' )
-		return makeJsonArray( tokens, pos + 1 );
+	if ( isPrimitiveNode( node ) )
+		return makeJsonPrimitive( node );
+	else if ( node.kind === 'object' )
+		return makeJsonObject( node );
+	else if ( node.kind === 'array' )
+		return makeJsonArray( node );
 
 	throw new Error( 'Failed to parse JSON document' );
-}
-
-/**
- * Returns 1 if the first token at <pos> is whitespace, otherwise 0
- */
-function jumpWhitespace( tokens: LexerTokens, pos: number ): 0 | 1
-{
-	return tokens[ pos ]?.type === 'whitespace' ? 1 : 0;
 }

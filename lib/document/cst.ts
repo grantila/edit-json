@@ -1,41 +1,29 @@
 import type {
-	AnyPrimitiveToken,
-	LexerToken,
-	LexerTokens,
-	WhitespaceToken,
-} from 'json-lexer'
+	CstValueNode,
+	CstNodeLiteral,
+	CstNodeNumber,
+	CstNodeString,
+} from 'json-cst'
+import type { WhitespaceToken } from 'json-lexer'
+
 import { Indentable } from './indentable.js'
 
 
-export function isPrimitiveToken( token: LexerToken )
-: token is AnyPrimitiveToken
+export type CstNodePrimitive =
+	| CstNodeLiteral
+	| CstNodeNumber
+	| CstNodeString;
+
+export function isPrimitiveNode( node: CstValueNode )
+: node is CstNodePrimitive
 {
 	return (
-		token.type === 'string'
+		node.kind === 'string'
 		||
-		token.type === 'number'
+		node.kind === 'number'
 		||
-		token.type === 'literal'
+		node.kind === 'literal'
 	);
-}
-
-export interface ExtractedWhitespace
-{
-	whitespace: Whitespace;
-	consumedTokens: number;
-}
-
-export function extractWhitespace( tokens: LexerTokens, pos: number )
-: ExtractedWhitespace
-{
-	const hasWhitespace = tokens[ pos ]?.type === 'whitespace';
-
-	const whitespace =
-		hasWhitespace
-		? getWhitespace( tokens[ pos ] as WhitespaceToken )
-		: { hasNewline: false, indentable: new Indentable( ) };
-
-	return { whitespace, consumedTokens: hasWhitespace ? 1 : 0 };
 }
 
 const reWhitespace = /(?:^|(?:.*[\t ])\n)\n*([^\n]+)$/;
