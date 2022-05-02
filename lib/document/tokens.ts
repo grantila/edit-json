@@ -1,9 +1,9 @@
-import {
+import type {
 	AnyPrimitiveToken,
 	LexerToken,
 	LexerTokens,
 	WhitespaceToken,
-} from '../types-internal.js'
+} from 'json-lexer'
 import { Indentable } from './indentable.js'
 
 
