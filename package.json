@@ -49,7 +49,7 @@
   "dependencies": {
     "fast-deep-equal": "^3.1.3",
     "json-cst": "^1.2.0",
-    "jsonpos": "^4.1.0"
+    "jsonpos": "^4.1.1"
   },
   "config": {
     "commitizen": {
